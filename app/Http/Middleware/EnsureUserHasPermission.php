@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use App\Models\Eleve;
 
 class EnsureUserHasPermission
 {
@@ -30,8 +31,11 @@ class EnsureUserHasPermission
                     }
                     
                     if ($user->role === 'parent') {
-                        // Logique à implémenter pour vérifier le lien parent-élève
-                        // Par exemple, via une table de liaison parents-élèves
+                        // Pour l'instant, les parents ont accès aux bulletins via l'email
+                        $eleve = Eleve::where('email', $user->email)->first();
+                        if (!$eleve || $eleve->id != $eleveId) {
+                            return response()->json(['message' => 'Accès non autorisé'], 403);
+                        }
                     }
                 }
                 break;

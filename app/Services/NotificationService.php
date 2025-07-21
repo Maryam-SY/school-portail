@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Eleve;
-use App\Models\Bulletin;
 use Illuminate\Support\Facades\Log;
 
 class NotificationService
@@ -12,18 +11,18 @@ class NotificationService
      * Préparer les données de notification de bulletin
      * 
      * @param Eleve $eleve L'élève concerné
-     * @param Bulletin $bulletin Le bulletin généré
+     * @param array $bulletin Le bulletin généré
      * @return array Données de notification
      */
-    public function preparerNotificationBulletin(Eleve $eleve, Bulletin $bulletin)
+    public function preparerNotificationBulletin(Eleve $eleve, array $bulletin)
     {
         return [
             'eleve_id' => $eleve->id,
             'eleve_nom' => $eleve->prenom . ' ' . $eleve->nom,
-            'email_parent' => $eleve->email_parent,
-            'periode' => $bulletin->periode,
+            'email' => $eleve->email,
+            'periode' => $bulletin['periode'],
             'date_generation' => now()->format('Y-m-d H:i:s'),
-            'moyenne_generale' => $bulletin->moyenne_generale,
+            'moyenne_generale' => $bulletin['moyenne'],
             'statut' => 'disponible'
         ];
     }
