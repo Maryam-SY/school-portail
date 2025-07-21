@@ -1,7 +1,4 @@
 # Portail Scolaire - API Documentation
-
-## 🚀 Vue d'ensemble
-
 API RESTful pour la gestion d'un portail scolaire développée avec Laravel 9 et PostgreSQL.
 
 
@@ -17,12 +14,12 @@ DB_PASSWORD=passer
 ```
 
 
-## 🔐 Authentification
+## Authentification
 
 L'API utilise Laravel Sanctum pour l'authentification par token.
 
 
-## 📚 Documentation des Endpoints
+## Documentation des Endpoints
 
 # Authentification
 
@@ -114,7 +111,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 🏫 Gestion des Classes
+###  Gestion des Classes
 
 #### Lister toutes les classes
 ```http
@@ -164,7 +161,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 👨‍🏫 Gestion des Enseignants
+###  Gestion des Enseignants
 
 #### Lister tous les enseignants
 ```http
@@ -218,7 +215,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 📚 Gestion des Matières
+###  Gestion des Matières
 
 #### Lister toutes les matières
 ```http
@@ -268,7 +265,7 @@ Authorization: Bearer {token}
 
 ---
 
-### 📝 Gestion des Notes
+###  Gestion des Notes
 
 #### Lister toutes les notes
 ```http
@@ -324,7 +321,7 @@ Authorization: Bearer {token}
 
 
 
-## 🔒 Sécurité
+##  Sécurité
 
 - **Authentification** : Laravel Sanctum
 - **Validation** : Validation Laravel
