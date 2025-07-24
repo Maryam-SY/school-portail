@@ -27,17 +27,13 @@ class MatiereController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nom' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:matieres,code',
-            'niveau' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'coefficient' => 'required|numeric|min:0.1|max:10'
+            'nom' => 'required|string',
+            'code' => 'required|string',
+            'niveau' => 'required|string',
+            'coefficient' => 'required|numeric',
         ]);
-
-        if($validated){
-            $matiere = Matiere::create($validated);
-            return response()->json($matiere, 201);
-        }
+        $matiere = Matiere::create($validated);
+        return response()->json($matiere, 201);
     }
 
     /**
@@ -58,22 +54,17 @@ class MatiereController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request)
+    public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'id' => 'required|exists:matieres,id',
-            'nom' => 'sometimes|string|max:255',
-            'code' => 'sometimes|string|max:50|unique:matieres,code,' . $request["id"],
-            'niveau' => 'sometimes|string|max:255',
-            'description' => 'sometimes|nullable|string|max:1000',
-            'coefficient' => 'sometimes|numeric|min:0.1|max:10'
+            'nom' => 'sometimes|required|string',
+            'code' => 'sometimes|required|string',
+            'niveau' => 'sometimes|required|string',
+            'coefficient' => 'sometimes|required|numeric',
         ]);
-
-        if($validated){
-            $matiere = Matiere::find($request["id"]);
-            $matiere->update($validated);
-            return response()->json($matiere, 200);
-        }
+        $matiere = Matiere::findOrFail($id);
+        $matiere->update($validated);
+        return response()->json($matiere, 200);
     }
 
     /**

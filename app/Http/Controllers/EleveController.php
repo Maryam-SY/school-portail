@@ -14,8 +14,7 @@ class EleveController extends Controller
      */
     public function index()
     {
-        $eleves = Eleve::all();
-        return response()->json($eleves, 200);
+        return Eleve::with('classe')->get();
     }
 
     /**
@@ -54,8 +53,22 @@ class EleveController extends Controller
      */
     public function show($id)
     {
-        $eleve = Eleve::find($id);
-        return response()->json($eleve, 200);
+        $eleve = \App\Models\Eleve::with(['classe', 'classe.enseignants', 'notes.matiere', 'notes.enseignant'])->findOrFail($id);
+        $notes = $eleve->notes;
+        $moyenne = $notes->count() ? round($notes->avg('valeur'), 2) : null;
+        $mention = app(\App\Http\Controllers\BulletinController::class)->getMention($moyenne);
+        $rang = null; // Optionnel : à calculer si besoin
+        return response()->json([
+            'id' => $eleve->id,
+            'nom' => $eleve->nom,
+            'prenom' => $eleve->prenom,
+            'classe' => $eleve->classe,
+            'notes' => $notes,
+            'moyenne' => $moyenne,
+            'mention' => $mention,
+            'rang' => $rang,
+            'enseignants' => $eleve->classe->enseignants ?? [],
+        ]);
     }
 
     /**
@@ -94,5 +107,43 @@ class EleveController extends Controller
     {
         Eleve::destroy($id);
         return response()->json("Élève supprimé avec succès", 200);
+    }
+
+    public function infos()
+    {
+        $user = auth()->user();
+        $eleve = \App\Models\Eleve::where('user_id', $user->id)
+            ->with(['classe', 'classe.enseignants', 'notes.matiere'])
+            ->firstOrFail();
+
+        $notes = $eleve->notes;
+        $moyenne = $notes->count() ? round($notes->avg('valeur'), 2) : null;
+        $mention = app(\App\Http\Controllers\BulletinController::class)->getMention($moyenne);
+        $rang = null; // Optionnel : à calculer si besoin
+
+        return response()->json([
+            'eleve' => $eleve,
+            'classe' => $eleve->classe,
+            'enseignants' => $eleve->classe->enseignants ?? [],
+            'notes' => $notes,
+            'moyenne' => $moyenne,
+            'mention' => $mention,
+            'rang' => $rang,
+        ]);
+    }
+
+    public function mesBulletins()
+    {
+        $user = auth()->user();
+        $eleve = \App\Models\Eleve::where('user_id', $user->id)->firstOrFail();
+        $periodes = $eleve->notes()->distinct('periode')->pluck('periode');
+        $bulletins = [];
+        foreach ($periodes as $periode) {
+            $bulletin = app(\App\Http\Controllers\BulletinController::class)->genererBulletin($eleve->id, $periode);
+            if ($bulletin) {
+                $bulletins[] = $bulletin;
+            }
+        }
+        return response()->json($bulletins);
     }
 }

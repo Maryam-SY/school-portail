@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Enseignant;
 use Illuminate\Http\Request;
+use App\Models\User;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class EnseignantController extends Controller
 {
@@ -14,8 +17,7 @@ class EnseignantController extends Controller
      */
     public function index()
     {
-        $enseignants = Enseignant::all();
-        return response()->json($enseignants, 200);
+        return Enseignant::with(['matieres', 'classes'])->get();
     }
 
     /**
@@ -29,17 +31,47 @@ class EnseignantController extends Controller
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
-            'email' => 'required|email|unique:enseignants,email',
-            'telephone' => 'nullable|string|max:20',
+            'email' => 'required|email|unique:users,email',
             'specialite' => 'required|string|max:255',
             'date_embauche' => 'required|date',
-            'adresse' => 'nullable|string|max:500'
+            'matiere_ids' => 'required|array|min:1',
+            'classe_ids' => 'required|array|min:1',
+            'telephone' => 'nullable|string|max:20',
+            'adresse' => 'nullable|string|max:500',
         ]);
 
-        if($validated){
-            $enseignant = Enseignant::create($validated);
-            return response()->json($enseignant, 201);
-        }
+        // Générer un mot de passe temporaire
+        $tempPassword = Str::random(10);
+
+        // Créer l'utilisateur
+        $user = User::create([
+            'name' => $validated['prenom'] . ' ' . $validated['nom'],
+            'email' => $validated['email'],
+            'password' => Hash::make($tempPassword),
+            'role' => 'enseignant',
+        ]);
+
+        // Créer l'enseignant lié à l'utilisateur
+        $enseignant = Enseignant::create([
+            'nom' => $validated['nom'],
+            'prenom' => $validated['prenom'],
+            'email' => $validated['email'],
+            'specialite' => $validated['specialite'],
+            'date_embauche' => $validated['date_embauche'] ?? null,
+            'telephone' => $validated['telephone'] ?? null,
+            'user_id' => $user->id,
+            // NE PAS inclure 'adresse' si la colonne n'existe pas !
+        ]);
+
+        $enseignant->matieres()->sync($validated['matiere_ids']);
+        $enseignant->classes()->sync($validated['classe_ids']);
+
+        // Retourner le mot de passe généré pour affichage/email
+        return response()->json([
+            'enseignant' => $enseignant->load(['matieres', 'classes']),
+            'user' => $user,
+            'temp_password' => $tempPassword
+        ]);
     }
 
     /**
@@ -50,8 +82,7 @@ class EnseignantController extends Controller
      */
     public function show($id)
     {
-        $enseignant = Enseignant::find($id);
-        return response()->json($enseignant, 200);
+        return Enseignant::with(['matieres', 'classes'])->findOrFail($id);
     }
 
     /**
@@ -60,24 +91,45 @@ class EnseignantController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request)
+    public function update(Request $request, $id)
     {
+        $enseignant = Enseignant::findOrFail($id);
+
         $validated = $request->validate([
-            'id' => 'required|exists:enseignants,id',
-            'nom' => 'sometimes|string|max:255',
-            'prenom' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:enseignants,email,' . $request["id"],
-            'telephone' => 'sometimes|nullable|string|max:20',
-            'specialite' => 'sometimes|string|max:255',
-            'date_embauche' => 'sometimes|date',
-            'adresse' => 'sometimes|nullable|string|max:500'
+            'nom' => 'required|string',
+            'prenom' => 'required|string',
+            'email' => 'required|email',
+            'specialite' => 'required|string',
+            'date_embauche' => 'required|date',
+            'matiere_ids' => 'required|array|min:1',
+            'classe_ids' => 'required|array|min:1',
         ]);
 
-        if($validated){
-            $enseignant = Enseignant::find($request["id"]);
-            $enseignant->update($validated);
-            return response()->json($enseignant, 200);
+        // On ne passe que les champs scalaires à update()
+        $enseignant->update([
+            'nom' => $validated['nom'],
+            'prenom' => $validated['prenom'],
+            'email' => $validated['email'],
+            'specialite' => $validated['specialite'],
+            'date_embauche' => $validated['date_embauche'],
+        ]);
+
+        // Suppression des anciennes associations dans la table pivot
+        \DB::table('enseignant_matiere')->where('enseignant_id', $enseignant->id)->delete();
+        // Réinsertion des nouvelles associations
+        foreach ($validated['matiere_ids'] as $matiere_id) {
+            foreach ($validated['classe_ids'] as $classe_id) {
+                \DB::table('enseignant_matiere')->insert([
+                    'enseignant_id' => $enseignant->id,
+                    'matiere_id' => $matiere_id,
+                    'classe_id' => $classe_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         }
+
+        return response()->json($enseignant->load(['matieres', 'classes']));
     }
 
     /**
@@ -90,5 +142,98 @@ class EnseignantController extends Controller
     {
         Enseignant::destroy($id);
         return response()->json("Enseignant supprimé avec succès", 200);
+    }
+
+    // Retourne les classes de l'enseignant connecté
+    public function mesClasses()
+    {
+        $user = auth()->user();
+        if ($user->role !== 'enseignant') {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        $classes = $enseignant->classes()->get();
+        return response()->json($classes);
+    }
+
+    // Retourne les matières de l'enseignant connecté
+    public function mesMatieres()
+    {
+        $user = auth()->user();
+        if ($user->role !== 'enseignant') {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        $matieres = $enseignant->matieres()->get();
+        return response()->json($matieres);
+    }
+
+    // Retourne les élèves d'une classe de l'enseignant connecté
+    public function elevesDeMaClasse($classe_id)
+    {
+        $user = auth()->user();
+        if ($user->role !== 'enseignant') {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        // Vérifier que la classe fait bien partie de ses classes
+        $classe = $enseignant->classes()->where('classes.id', $classe_id)->first();
+        if (!$classe) {
+            return response()->json(['message' => 'Classe non autorisée'], 403);
+        }
+        $eleves = \App\Models\Eleve::where('classe_id', $classe_id)->get();
+        return response()->json($eleves);
+    }
+
+    // Retourne les classes affectées à l'enseignant (par id)
+    public function classesById($id)
+    {
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $user->id !== (int)$id) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::findOrFail($id);
+        $classes = $enseignant->classes()->get();
+        return response()->json($classes);
+    }
+
+    // Retourne les matières affectées à l'enseignant (par id)
+    public function matieresById($id)
+    {
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $user->id !== (int)$id) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::findOrFail($id);
+        $matieres = $enseignant->matieres()->get();
+        return response()->json($matieres);
+    }
+
+    // Retourne les élèves d'une classe d'un enseignant (par id)
+    public function elevesByClasse($id, $classe_id)
+    {
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $user->id !== (int)$id) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::findOrFail($id);
+        $classe = $enseignant->classes()->where('classes.id', $classe_id)->first();
+        if (!$classe) {
+            return response()->json(['message' => 'Classe non autorisée'], 403);
+        }
+        $eleves = \App\Models\Eleve::where('classe_id', $classe_id)->get();
+        return response()->json($eleves);
+    }
+
+    // Retourne les matières de l'enseignant pour une classe donnée (optionnel)
+    public function matieresByClasse($id, $classe_id)
+    {
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $user->id !== (int)$id) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $enseignant = \App\Models\Enseignant::findOrFail($id);
+        $matieres = $enseignant->matieres()->wherePivot('classe_id', $classe_id)->get();
+        return response()->json($matieres);
     }
 }

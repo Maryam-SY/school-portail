@@ -13,12 +13,15 @@ return new class extends Migration
     {
         Schema::create('enseignants', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('user_id'); // Clé étrangère vers users
             $table->string('nom'); 
             $table->string('prenom'); 
             $table->string('email')->unique();
             $table->string('telephone')->nullable(); 
             $table->string('specialite')->nullable();
             $table->timestamps();
+
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 

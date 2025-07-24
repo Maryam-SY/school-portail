@@ -69,4 +69,51 @@ class AuthController extends Controller
             'message' => 'Déconnecté avec succès'
         ]);
     }
+
+    public function registerEleveParent(Request $request)
+    {
+        $validated = $request->validate([
+            'nom' => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
+            'date_naissance' => 'required|date',
+            'email' => 'required|email|unique:users,email',
+            'parent_email' => 'required|email|unique:users,email',
+            // autres champs si besoin
+        ]);
+
+        // Génère un mot de passe commun
+        $password = 'passer'; // ou \Illuminate\Support\Str::random(8);
+
+        // Crée le user élève
+        $userEleve = \App\Models\User::create([
+            'name' => $validated['prenom'] . ' ' . $validated['nom'],
+            'email' => $validated['email'],
+            'password' => \Illuminate\Support\Facades\Hash::make($password),
+            'role' => 'eleve',
+        ]);
+
+        // Crée le user parent
+        $userParent = \App\Models\User::create([
+            'name' => 'Parent de ' . $validated['prenom'],
+            'email' => $validated['parent_email'],
+            'password' => \Illuminate\Support\Facades\Hash::make($password),
+            'role' => 'parent',
+        ]);
+
+        // Crée l’élève et associe le parent
+        $eleve = \App\Models\Eleve::create([
+            'nom' => $validated['nom'],
+            'prenom' => $validated['prenom'],
+            'date_naissance' => $validated['date_naissance'],
+            'email' => $validated['email'],
+            'parent_email' => $validated['parent_email'],
+            // autres champs si besoin
+        ]);
+
+        return response()->json([
+            'eleve' => $userEleve->email,
+            'parent' => $userParent->email,
+            'password' => $password
+        ]);
+    }
 }

@@ -14,14 +14,17 @@ class Note extends Model
 
 public function eleve()
 {
-    // Chaque note appartient à UN élève
-    return $this->belongsTo(Eleve::class);
+    return $this->belongsTo(\App\Models\Eleve::class);
 }
 
 public function matiere()
 {
-    
-    return $this->belongsTo(Matiere::class);
+    return $this->belongsTo(\App\Models\Matiere::class);
+}
+
+public function enseignant()
+{
+    return $this->belongsTo(\App\Models\Enseignant::class);
 }
 
 }

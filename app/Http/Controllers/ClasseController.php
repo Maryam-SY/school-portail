@@ -27,16 +27,13 @@ class ClasseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nom' => 'required|string|max:255',
-            'niveau' => 'required|string|max:255',
-            'annee_scolaire' => 'required|string|max:255',
-            'capacite' => 'required|integer|min:1|max:100'
+            'nom' => 'required|string',
+            'niveau' => 'required|string',
+            'annee_scolaire' => 'required|string',
+            'capacite' => 'required|integer',
         ]);
-
-        if($validated){
-            $classe = Classe::create($validated);
-            return response()->json($classe, 201);
-        }
+        $classe = Classe::create($validated);
+        return response()->json($classe, 201);
     }
 
     /**
@@ -57,21 +54,17 @@ class ClasseController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request)
+    public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'id' => 'required|exists:classes,id',
-            'nom' => 'sometimes|string|max:255',
-            'niveau' => 'sometimes|string|max:255',
-            'annee_scolaire' => 'sometimes|string|max:255',
-            'capacite' => 'sometimes|integer|min:1|max:100'
+            'nom' => 'sometimes|required|string',
+            'niveau' => 'sometimes|required|string',
+            'annee_scolaire' => 'sometimes|required|string',
+            'capacite' => 'sometimes|required|integer',
         ]);
-
-        if($validated){
-            $classe = Classe::find($request["id"]);
-            $classe->update($validated);
-            return response()->json($classe, 200);
-        }
+        $classe = Classe::findOrFail($id);
+        $classe->update($validated);
+        return response()->json($classe, 200);
     }
 
     /**

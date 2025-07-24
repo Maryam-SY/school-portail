@@ -25,4 +25,9 @@ public function notes()
     return $this->hasMany(Note::class);
 }
 
+public function parentUser()
+{
+    return $this->belongsTo(User::class, 'parent_user_id');
+}
+
 }
