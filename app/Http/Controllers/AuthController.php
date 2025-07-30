@@ -63,41 +63,47 @@ class AuthController extends Controller
     // Déconnexion
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json([
-            'message' => 'Déconnecté avec succès'
-        ]);
+        $user = $request->user();
+        if ($user && $user->currentAccessToken()) {
+            $user->currentAccessToken()->delete();
+        }
+        return response()->json(['message' => 'Déconnexion réussie']);
     }
 
     public function registerEleveParent(Request $request)
     {
+        // Accepte email_eleve/email_parent ou email/parent_email
+        $data = $request->all();
+        $data['email'] = $data['email'] ?? $data['email_eleve'] ?? null;
+        $data['parent_email'] = $data['parent_email'] ?? $data['email_parent'] ?? null;
+
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'date_naissance' => 'required|date',
             'email' => 'required|email|unique:users,email',
             'parent_email' => 'required|email|unique:users,email',
-            // autres champs si besoin
-        ]);
-
-        // Génère un mot de passe commun
-        $password = 'passer'; // ou \Illuminate\Support\Str::random(8);
-
-        // Crée le user élève
-        $userEleve = \App\Models\User::create([
-            'name' => $validated['prenom'] . ' ' . $validated['nom'],
-            'email' => $validated['email'],
-            'password' => \Illuminate\Support\Facades\Hash::make($password),
-            'role' => 'eleve',
+            'password' => 'required|string|min:6|confirmed',
+        ], [
+            'email.unique' => 'Cet email élève est déjà utilisé.',
+            'parent_email.unique' => 'Cet email parent est déjà utilisé.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
         ]);
 
         // Crée le user parent
         $userParent = \App\Models\User::create([
             'name' => 'Parent de ' . $validated['prenom'],
             'email' => $validated['parent_email'],
-            'password' => \Illuminate\Support\Facades\Hash::make($password),
+            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
             'role' => 'parent',
+        ]);
+
+        // Crée le user élève
+        $userEleve = \App\Models\User::create([
+            'name' => $validated['prenom'] . ' ' . $validated['nom'],
+            'email' => $validated['email'],
+            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
+            'role' => 'eleve',
         ]);
 
         // Crée l’élève et associe le parent
@@ -107,13 +113,14 @@ class AuthController extends Controller
             'date_naissance' => $validated['date_naissance'],
             'email' => $validated['email'],
             'parent_email' => $validated['parent_email'],
+            'parent_user_id' => $userParent->id,
             // autres champs si besoin
         ]);
 
         return response()->json([
-            'eleve' => $userEleve->email,
-            'parent' => $userParent->email,
-            'password' => $password
+            'email_eleve' => $userEleve->email,
+            'email_parent' => $userParent->email,
+            'password' => $validated['password'],
         ]);
     }
 }

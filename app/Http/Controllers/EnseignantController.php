@@ -144,45 +144,50 @@ class EnseignantController extends Controller
         return response()->json("Enseignant supprimé avec succès", 200);
     }
 
-    // Retourne les classes de l'enseignant connecté
-    public function mesClasses()
+    /**
+     * Retourne les classes de l'enseignant connecté
+     */
+    public function mesClasses(Request $request)
     {
         $user = auth()->user();
-        if ($user->role !== 'enseignant') {
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
             return response()->json(['message' => 'Non autorisé'], 403);
         }
-        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
-        $classes = $enseignant->classes()->get();
+        $classes = $enseignant->classes()->distinct()->get();
         return response()->json($classes);
     }
 
-    // Retourne les matières de l'enseignant connecté
-    public function mesMatieres()
+    /**
+     * Retourne les matières de l'enseignant connecté
+     */
+    public function mesMatieres(Request $request)
     {
         $user = auth()->user();
-        if ($user->role !== 'enseignant') {
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
             return response()->json(['message' => 'Non autorisé'], 403);
         }
-        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
-        $matieres = $enseignant->matieres()->get();
+        $matieres = $enseignant->matieres()->distinct()->get();
         return response()->json($matieres);
     }
 
-    // Retourne les élèves d'une classe de l'enseignant connecté
-    public function elevesDeMaClasse($classe_id)
+    /**
+     * Retourne les élèves d'une classe si l'enseignant y enseigne
+     */
+    public function elevesClasse($classe_id, Request $request)
     {
         $user = auth()->user();
-        if ($user->role !== 'enseignant') {
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
             return response()->json(['message' => 'Non autorisé'], 403);
         }
-        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
-        // Vérifier que la classe fait bien partie de ses classes
-        $classe = $enseignant->classes()->where('classes.id', $classe_id)->first();
-        if (!$classe) {
-            return response()->json(['message' => 'Classe non autorisée'], 403);
+        $enseigne = $enseignant->classes()->where('classes.id', $classe_id)->exists();
+        if (!$enseigne) {
+            return response()->json(['message' => 'Vous n\'enseignez pas dans cette classe'], 403);
         }
-        $eleves = \App\Models\Eleve::where('classe_id', $classe_id)->get();
-        return response()->json($eleves);
+        $classe = \App\Models\Classe::with('eleves')->findOrFail($classe_id);
+        return response()->json($classe->eleves);
     }
 
     // Retourne les classes affectées à l'enseignant (par id)
@@ -234,6 +239,178 @@ class EnseignantController extends Controller
         }
         $enseignant = \App\Models\Enseignant::findOrFail($id);
         $matieres = $enseignant->matieres()->wherePivot('classe_id', $classe_id)->get();
+        return response()->json($matieres);
+    }
+
+    /**
+     * Statistiques pour l'enseignant connecté (exemple minimal)
+     */
+    public function stats(Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        // Nombre de classes et matières
+        $nbClasses = $enseignant->classes()->distinct()->count();
+        $nbMatieres = $enseignant->matieres()->distinct()->count();
+        $nbNotes = \App\Models\Note::where('enseignant_id', $enseignant->id)->count();
+        $nbBulletins = 0; // À implémenter si nécessaire
+        
+        return response()->json([
+            'nb_classes' => $nbClasses,
+            'nb_matieres' => $nbMatieres,
+            'nb_notes' => $nbNotes,
+            'nb_bulletins' => $nbBulletins
+        ]);
+    }
+
+    /**
+     * Notes saisies par l'enseignant connecté (exemple minimal)
+     */
+    public function notes(Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        $notes = \App\Models\Note::with(['eleve', 'matiere'])
+            ->where('enseignant_id', $enseignant->id)
+            ->get();
+        return response()->json($notes);
+    }
+
+    /**
+     * Retourne tous les élèves de l'enseignant connecté (de toutes ses classes)
+     */
+    public function mesEleves(Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        
+        // Récupérer les IDs des classes où l'enseignant enseigne
+        $classeIds = $enseignant->classes()->pluck('classes.id');
+        
+        // Récupérer tous les élèves de ces classes
+        $eleves = \App\Models\Eleve::with('classe')
+            ->whereIn('classe_id', $classeIds)
+            ->get();
+            
+        return response()->json($eleves);
+    }
+
+    /**
+     * Retourne les élèves d'une classe spécifique (si l'enseignant y enseigne)
+     */
+    public function elevesParClasse($classe_id, Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        
+        // Vérifier que l'enseignant enseigne dans cette classe
+        $enseigne = $enseignant->classes()->where('classes.id', $classe_id)->exists();
+        if (!$enseigne) {
+            return response()->json(['message' => 'Vous n\'enseignez pas dans cette classe'], 403);
+        }
+        
+        // Récupérer les élèves de cette classe
+        $eleves = \App\Models\Eleve::with('classe')
+            ->where('classe_id', $classe_id)
+            ->get();
+            
+        return response()->json($eleves);
+    }
+
+    /**
+     * Retourne les élèves pour une matière spécifique (selon les classes où l'enseignant enseigne cette matière)
+     */
+    public function elevesParMatiere($matiere_id, Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        
+        // Récupérer les classes où l'enseignant enseigne cette matière
+        $classeIds = \DB::table('enseignant_matiere')
+            ->where('enseignant_id', $enseignant->id)
+            ->where('matiere_id', $matiere_id)
+            ->pluck('classe_id');
+        
+        if ($classeIds->isEmpty()) {
+            return response()->json(['message' => 'Vous n\'enseignez pas cette matière'], 403);
+        }
+        
+        // Récupérer les élèves de ces classes
+        $eleves = \App\Models\Eleve::with('classe')
+            ->whereIn('classe_id', $classeIds)
+            ->get();
+            
+        return response()->json($eleves);
+    }
+
+    /**
+     * Retourne les élèves pour une combinaison classe + matière
+     */
+    public function elevesParClasseEtMatiere($classe_id, $matiere_id, Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        
+        // Vérifier que l'enseignant enseigne cette matière dans cette classe
+        $enseigne = \DB::table('enseignant_matiere')
+            ->where('enseignant_id', $enseignant->id)
+            ->where('matiere_id', $matiere_id)
+            ->where('classe_id', $classe_id)
+            ->exists();
+        
+        if (!$enseigne) {
+            return response()->json(['message' => 'Vous n\'enseignez pas cette matière dans cette classe'], 403);
+        }
+        
+        // Récupérer les élèves de cette classe
+        $eleves = \App\Models\Eleve::with('classe')
+            ->where('classe_id', $classe_id)
+            ->get();
+            
+        return response()->json($eleves);
+    }
+
+    /**
+     * Retourne les matières enseignées dans une classe spécifique
+     */
+    public function matieresParClasse($classe_id, Request $request)
+    {
+        $user = auth()->user();
+        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        if (!$enseignant) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+        
+        // Vérifier que l'enseignant enseigne dans cette classe
+        $enseigne = $enseignant->classes()->where('classes.id', $classe_id)->exists();
+        if (!$enseigne) {
+            return response()->json(['message' => 'Vous n\'enseignez pas dans cette classe'], 403);
+        }
+        
+        // Récupérer les matières enseignées dans cette classe
+        $matieres = \App\Models\Matiere::whereHas('enseignants', function($query) use ($enseignant, $classe_id) {
+            $query->where('enseignant_id', $enseignant->id)
+                  ->where('classe_id', $classe_id);
+        })->get();
+            
         return response()->json($matieres);
     }
 }

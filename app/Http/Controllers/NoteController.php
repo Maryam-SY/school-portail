@@ -31,8 +31,14 @@ class NoteController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        if ($user->role !== 'enseignant') {
-            return response()->json(['message' => 'Non autorisé'], 403);
+        $enseignant = null;
+        $enseignant_id = $request->input('enseignant_id');
+        
+        if ($user->role === 'enseignant') {
+            $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+            $enseignant_id = $enseignant ? $enseignant->id : null;
+        } elseif ($enseignant_id) {
+            $enseignant = \App\Models\Enseignant::find($enseignant_id);
         }
 
         $validated = $request->validate([
@@ -40,30 +46,50 @@ class NoteController extends Controller
             'matiere_id' => 'required|exists:matieres,id',
             'valeur' => 'required|numeric|min:0|max:20',
             'periode' => 'required|in:Semestre 1,Semestre 2',
+            'enseignant_id' => 'nullable|exists:enseignants,id',
         ]);
 
-        $enseignant = \App\Models\Enseignant::where('user_id', $user->id)->first();
+        // Vérifier que l'enseignant a le droit de noter cet élève/matière
         $eleve = \App\Models\Eleve::find($validated['eleve_id']);
         $matiereId = $validated['matiere_id'];
+        
+        if ($user->role === 'enseignant') {
+            // Vérifier que l'enseignant enseigne cette matière dans la classe de l'élève
+            $enseigne = $enseignant && $eleve ? \DB::table('enseignant_matiere')
+                ->where('enseignant_id', $enseignant_id)
+                ->where('matiere_id', $matiereId)
+                ->where('classe_id', $eleve->classe_id)
+                ->exists() : false;
+                
+            if (!$enseigne) {
+                return response()->json([
+                    'message' => 'Vous ne pouvez pas noter cet élève pour cette matière. Vérifiez que vous enseignez cette matière dans la classe de l\'élève.'
+                ], 403);
+            }
+        }
 
-        $enseigne = \DB::table('enseignant_matiere')
-            ->where('enseignant_id', $enseignant->id)
+        // Vérifier si une note existe déjà pour cet élève/matière/période
+        $noteExistante = \App\Models\Note::where('eleve_id', $validated['eleve_id'])
             ->where('matiere_id', $matiereId)
-            ->where('classe_id', $eleve->classe_id)
-            ->exists();
-
-        if (!$enseigne) {
-            return response()->json(['message' => 'Vous ne pouvez pas noter cet élève pour cette matière'], 403);
+            ->where('periode', $validated['periode'])
+            ->where('enseignant_id', $enseignant_id)
+            ->first();
+            
+        if ($noteExistante) {
+            return response()->json([
+                'message' => 'Une note existe déjà pour cet élève, cette matière et cette période.'
+            ], 409);
         }
 
         $note = \App\Models\Note::create([
             'eleve_id' => $validated['eleve_id'],
             'matiere_id' => $matiereId,
-            'enseignant_id' => $enseignant->id,
+            'enseignant_id' => $enseignant_id,
             'valeur' => $validated['valeur'],
             'periode' => $validated['periode'],
         ]);
 
+        $note = \App\Models\Note::with(['eleve', 'matiere', 'enseignant'])->find($note->id);
         return response()->json($note, 201);
     }
 

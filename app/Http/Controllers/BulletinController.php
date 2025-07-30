@@ -93,6 +93,43 @@ class BulletinController extends Controller
     }
 
     /**
+     * Récupérer tous les bulletins complets (pour le frontend)
+     */
+    public function indexComplet()
+    {
+        try {
+            // Récupérer tous les élèves avec leurs relations
+            $eleves = Eleve::with(['classe', 'notes.matiere'])->get();
+            
+            $bulletins = [];
+            $periodes = Note::distinct('periode')->pluck('periode')->sort();
+            
+            foreach ($eleves as $eleve) {
+                foreach ($periodes as $periode) {
+                    $bulletin = $this->genererBulletin($eleve->id, $periode);
+                    if ($bulletin) {
+                        $bulletins[] = $bulletin;
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $bulletins,
+                'total' => count($bulletins)
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur dans indexComplet: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des bulletins',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Générer un bulletin simple pour un élève
      */
     public function genererBulletin($eleve_id, $periode = null)

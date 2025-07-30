@@ -53,11 +53,35 @@ class EleveController extends Controller
      */
     public function show($id)
     {
-        $eleve = \App\Models\Eleve::with(['classe', 'classe.enseignants', 'notes.matiere', 'notes.enseignant'])->findOrFail($id);
-        $notes = $eleve->notes;
+        $eleve = \App\Models\Eleve::with([
+            'classe',
+            'classe.enseignants',
+            'notes.matiere',
+            'notes.enseignant',
+        ])->findOrFail($id);
+
+        $notes = $eleve->notes->map(function($note) {
+            return [
+                'id' => $note->id,
+                'valeur' => $note->valeur,
+                'periode' => $note->periode,
+                'matiere' => $note->matiere ? [
+                    'id' => $note->matiere->id,
+                    'nom' => $note->matiere->nom,
+                    'coefficient' => $note->matiere->coefficient ?? null,
+                ] : null,
+                'enseignant' => $note->enseignant ? [
+                    'id' => $note->enseignant->id,
+                    'nom' => $note->enseignant->nom,
+                    'prenom' => $note->enseignant->prenom,
+                ] : null,
+            ];
+        });
+
         $moyenne = $notes->count() ? round($notes->avg('valeur'), 2) : null;
         $mention = app(\App\Http\Controllers\BulletinController::class)->getMention($moyenne);
         $rang = null; // Optionnel : à calculer si besoin
+
         return response()->json([
             'id' => $eleve->id,
             'nom' => $eleve->nom,

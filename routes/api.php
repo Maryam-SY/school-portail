@@ -53,8 +53,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/notes', [\App\Http\Controllers\NoteController::class, 'store']);
     Route::get('/enseignant/notes', [\App\Http\Controllers\NoteController::class, 'mesNotes']);
-    Route::get('/enseignant/classes', [\App\Http\Controllers\EnseignantController::class, 'mesClasses']);
-    Route::get('/enseignant/matieres', [\App\Http\Controllers\EnseignantController::class, 'mesMatieres']);
     Route::get('/enseignant/classes/{classe_id}/eleves', [\App\Http\Controllers\EnseignantController::class, 'elevesDeMaClasse']);
     Route::get('/enseignants/{id}/classes', [\App\Http\Controllers\EnseignantController::class, 'classesById']);
     Route::get('/enseignants/{id}/matieres', [\App\Http\Controllers\EnseignantController::class, 'matieresById']);
@@ -64,4 +62,38 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/parent/bulletins/{enfant_id}', [\App\Http\Controllers\ParentController::class, 'bulletins']);
     Route::get('/eleve/infos', [\App\Http\Controllers\EleveController::class, 'infos']);
     Route::get('/eleve/bulletins', [\App\Http\Controllers\EleveController::class, 'mesBulletins']);
+    Route::get('/eleve/bulletins/historique', [\App\Http\Controllers\EleveController::class, 'historiqueBulletins']);
+    Route::get('/eleve/bulletins/{periode}', [\App\Http\Controllers\EleveController::class, 'bulletinParPeriode']);
+    
+    // Routes pour les parents
+    Route::get('/parent/enfants', [\App\Http\Controllers\ParentController::class, 'enfants']);
+    Route::get('/parent/bulletins/{enfant_id}', [\App\Http\Controllers\ParentController::class, 'bulletins']);
+    Route::get('/parent/bulletins/{enfant_id}/{periode}', [\App\Http\Controllers\ParentController::class, 'bulletinEnfantPeriode']);
+    Route::get('/parent/bulletins/{enfant_id}/historique', [\App\Http\Controllers\ParentController::class, 'historiqueBulletinsEnfant']);
+    
+    // Route pour tous les bulletins (utilisée par le frontend)
+    Route::get('/bulletins-complets', [\App\Http\Controllers\BulletinController::class, 'indexComplet']);
+    
+    // Routes pour récupérer les listes d'élèves et classes (pour le filtrage)
+    Route::get('/eleves', [App\Http\Controllers\EleveController::class, 'index']);
+    Route::get('/classes', [App\Http\Controllers\ClasseController::class, 'index']);
+    
+    // Route PDF publique
+    Route::get('/bulletins/pdf/{eleveId}/{periode}', [App\Http\Controllers\BulletinController::class, 'telechargerBulletinPDF']);
+}); 
+
+// Routes pour l'enseignant connecté (uniquement les bonnes URLs, sans doublons ni conflits)
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/enseignant/stats', [App\Http\Controllers\EnseignantController::class, 'stats']);
+    Route::get('/enseignant/notes', [App\Http\Controllers\EnseignantController::class, 'notes']);
+    Route::get('/enseignant/eleves', [App\Http\Controllers\EnseignantController::class, 'mesEleves']);
+    Route::get('/enseignant/mes-classes', [App\Http\Controllers\EnseignantController::class, 'mesClasses']);
+    Route::get('/enseignant/mes-matieres', [App\Http\Controllers\EnseignantController::class, 'mesMatieres']);
+    Route::get('/enseignant/classes/{classe_id}/eleves', [App\Http\Controllers\EnseignantController::class, 'elevesClasse']);
+    
+    // Nouvelles routes pour le filtrage avancé
+    Route::get('/enseignant/classes/{classe_id}/eleves-filtres', [App\Http\Controllers\EnseignantController::class, 'elevesParClasse']);
+    Route::get('/enseignant/matieres/{matiere_id}/eleves', [App\Http\Controllers\EnseignantController::class, 'elevesParMatiere']);
+    Route::get('/enseignant/classes/{classe_id}/matieres/{matiere_id}/eleves', [App\Http\Controllers\EnseignantController::class, 'elevesParClasseEtMatiere']);
+    Route::get('/enseignant/classes/{classe_id}/matieres', [App\Http\Controllers\EnseignantController::class, 'matieresParClasse']);
 }); 
